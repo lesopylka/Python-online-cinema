@@ -6,3 +6,5 @@ opentelemetry-sdk==1.24.0
 opentelemetry-exporter-otlp==1.24.0
 opentelemetry-instrumentation-fastapi==0.45b0
 opentelemetry-instrumentation-logging==0.45b0
+opentelemetry-semantic-conventions==0.45b0
+pydantic==2.6.4
