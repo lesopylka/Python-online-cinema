@@ -1,0 +1,11 @@
+app:
+  name: movies-app
+  env: dev
+
+logging:
+  level: INFO
+  format: json
+
+metrics:
+  enabled: true
+  endpoint: /metrics
