@@ -9,3 +9,8 @@ logging:
 metrics:
   enabled: true
   endpoint: /metrics
+
+tracing:
+  enabled: true
+  endpoint: http://localhost:4317
+

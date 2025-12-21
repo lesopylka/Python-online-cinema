@@ -10,10 +10,11 @@
 
 Установка:
 ```bash
-pip install -r requirements.txt
+pip install -r requirements.txt --upgrade
 ```
 
 ### Запуск проекта
+
 ``` bash
 uvicorn app.main:app --reload
 ```
@@ -28,10 +29,11 @@ uvicorn app.main:app --reload
 curl http://127.0.0.1:8000/metrics
 ```
 
+Для более детального просмотра трейсов откройте web-интерфейс Jaeger в браузере: 'http://localhost:16686', 
+
 **ВАЖНО: почему метрики могут быть пустыми**
 
-Метрики `http_requests_total` и `http_request_duration_seconds`
-появляются только после обработки хотя бы одного HTTP-запроса.
+Метрики появляются только после обработки хотя бы одного HTTP-запроса.
 
 Алгоритм проверки:
 

@@ -8,6 +8,15 @@ from fastapi import FastAPI, Request, Response
 from prometheus_client import Counter, Histogram, CONTENT_TYPE_LATEST, generate_latest
 import json
 import secrets
+from opentelemetry import trace
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.instrumentation.logging import LoggingInstrumentor
+from opentelemetry.trace import get_current_span
+
 
 _request_id: ContextVar[str | None] = ContextVar("request_id", default=None) #создаем контекстную переменную для хранения request_id
 
@@ -51,6 +60,12 @@ class JsonFormatter(logging.Formatter):
             "request_id": _request_id.get(), #подтягиваеем request_id из контекста
         }
 
+        span = get_current_span()  # получаем текущий span
+        ctx = span.get_span_context()  # получаем контекст span
+
+        if ctx.is_valid:
+            msg["trace_id"] = format(ctx.trace_id, "032x")  # добавляем trace_id
+
         if record.exc_info: #проверяем наличие исключения
             msg["exc_info"] = self.formatException(record.exc_info) #добавляем стек исключения в лог
 
@@ -90,7 +105,7 @@ def attach_observability(app: FastAPI, config: dict) -> None:
     Подключает сбор логов и метрик к FastAPI-приложению
     с использованием параметров из конфигурационного файла.
     """
-
+    setup_tracing(config)
     setup_logging(config["logging"]["level"]) #инициализируем логирование с уровнем из конфига
 
     if config["metrics"]["enabled"]: #проверка включены ли метрики
@@ -111,10 +126,13 @@ def attach_observability(app: FastAPI, config: dict) -> None:
             start = time.perf_counter() #фиксируем время начала запроса
             status = 500 #задаем статус по умолчанию
 
+            log = logging.getLogger("app")
+
             try:
                 response: Response = await call_next(request) #управление передаем следующему обработчику
                 status = response.status_code #сохраняем HTTP-статус ответа
                 response.headers["x-request-id"] = rid #request_id добавляем в заголовок ответа
+                log.info("request processed")
                 return response
             finally:
                 elapsed = time.perf_counter() - start #длительность обработки запроса
@@ -132,7 +150,7 @@ def attach_observability(app: FastAPI, config: dict) -> None:
                     path=path, #путь запроса
                 ).observe(elapsed) #время выполнения запроса
 
-                _request_id.reset(token) #очищается контекст request_id
+                _request_id.reset(token) #очищается контекст request_id 
 
         @app.get("/metrics")
         def metrics():
@@ -143,6 +161,8 @@ def attach_observability(app: FastAPI, config: dict) -> None:
                 content=generate_latest(), #формируются актуальные метрики Prometheus
                 media_type=CONTENT_TYPE_LATEST, #тип контента ответа
             )
+        
+    FastAPIInstrumentor.instrument_app(app)       
 
 
 def _gen_request_id() -> str:
@@ -153,3 +173,34 @@ def _gen_request_id() -> str:
     """
 
     return secrets.token_hex(16) #генерируется случайный request_id
+
+def setup_tracing(config: dict) -> None:
+    """
+    Инициализирует distributed tracing через OpenTelemetry.
+    Используется только при включенном трейcинге в конфиге.
+    """
+
+    if not config.get("tracing", {}).get("enabled"):
+        return
+
+    resource = Resource.create(
+        {
+            "service.name": config["app"]["name"],
+            "service.version": "1.0.0",
+            "deployment.environment": config["app"]["env"],
+        }
+    )
+
+    provider = TracerProvider(resource=resource)
+
+    exporter = OTLPSpanExporter(
+        endpoint=config["tracing"]["endpoint"],
+        insecure=True,
+    )
+
+    provider.add_span_processor(BatchSpanProcessor(exporter))
+    trace.set_tracer_provider(provider)
+
+    LoggingInstrumentor().instrument(set_logging_format=False)
+
+
