@@ -1,0 +1,15 @@
+[
+  {
+    "movie_id": 1,
+    "title": "Inception",
+    "language": "ru",
+    "description": "Партнёрское описание. Его НЕ должно быть видно в итоге."
+  },
+  {
+    "movie_id": 2,
+    "title": "Interstellar",
+    "language": "ru",
+    "description": "Партнёрское описание про космос."
+  }
+]
+
