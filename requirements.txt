@@ -8,3 +8,21 @@ opentelemetry-instrumentation-fastapi==0.45b0
 opentelemetry-instrumentation-logging==0.45b0
 opentelemetry-semantic-conventions==0.45b0
 pydantic==2.6.4
+
+# requirements.txt
+# madina
+fastapi
+uvicorn[standard]
+pydantic
+boto3                  # S3 / MinIO
+kafka-python           # или confluent-kafka
+sqlalchemy             # если есть БД
+psycopg2-binary        # PostgreSQL
+loguru                 # логи
+prometheus-client      # метрики + мониторинг
+python-multipart       # загрузка/отдача файлов
+fastapi
+uvicorn
+pydantic-settings
+aiokafka
+python-dotenv
