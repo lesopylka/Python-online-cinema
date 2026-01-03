@@ -75,7 +75,7 @@ docker compose exec postgres psql -U cinema -d cinema -c "select count(*) from m
 docker compose exec postgres psql -U cinema -d cinema -c "select movie_id,title,source_used from movies limit 10;"
 ```
 
-Интерфейс:
+### Интерфейс:
 ![photo_2026-01-03_17-21-47 (2)](https://github.com/user-attachments/assets/3599dfe7-eb22-40d2-877a-149c8729d56c)
 ![photo_2026-01-03_17-21-47 (3)](https://github.com/user-attachments/assets/55a4ef8b-7d96-4cfc-88fb-bba4afab2fc5)
 ![photo_2026-01-03_17-21-47](https://github.com/user-attachments/assets/447b4270-42b3-4967-8bfe-7e3884a49746)
