@@ -34,32 +34,51 @@
       <header class="topbar">
         <div class="topbarTitle" id="pageTitle">Каталог</div>
 
-        <div class="topbarSearch" id="topbarSearch">
-          <input id="q" class="input inputSm" placeholder="Поиск по названию…" autocomplete="off"/>
+        <div class="topbarCenter">
+          <input id="q" class="input topbarSearch" placeholder="Поиск по названию..." autocomplete="off"/>
+        </div>
+
+        <div class="topbarRight">
+          <button id="refresh" class="btn btnGhost">Обновить</button>
         </div>
       </header>
 
       <section class="content">
+        <!-- CATALOG -->
         <div class="page" id="page-catalog">
-          <div class="grid">
+          <div class="grid2">
             <div class="card">
-              <div class="cardTitle">Карточка фильма</div>
-              <div id="movieDetails" class="empty">
-                Выбери фильм из списка ниже.
+              <div class="cardTitle">Результаты</div>
+              <div id="list" class="listGrid"></div>
+
+              <div class="row spaceBetween">
+                <div class="muted" id="countLabel">—</div>
+                <div class="row">
+                  <button id="prev" class="btn btnGhost">←</button>
+                  <button id="next" class="btn btnGhost">→</button>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div class="card">
-            <div class="cardTitle">Список</div>
-            <div id="list" class="listGrid"></div>
+            <div class="card">
+              <div class="cardTitle">Фильм</div>
 
-            <div class="row spaceBetween">
-              <div class="muted" id="countLabel">—</div>
-              <div class="row">
-                <button id="prev" class="btn btnGhost">←</button>
-                <button id="next" class="btn btnGhost">→</button>
+              <div id="movieDetails" class="empty">
+                Выбери фильм из списка слева.
               </div>
+
+              <div class="divider"></div>
+
+              <div class="cardTitle">Видео</div>
+
+              <div id="videoBlock" class="empty">
+                Выбери фильм, чтобы загрузить видео.
+              </div>
+
+              <div class="divider"></div>
+
+              <div class="cardTitle">Активность</div>
+              <pre id="activityLog" class="pre">—</pre>
             </div>
           </div>
         </div>
@@ -72,7 +91,7 @@
             <div class="row">
               <div class="field grow">
                 <label class="label">Movie ID</label>
-                <input id="ovMovieId" class="input" placeholder="например: 101" />
+                <input id="ovMovieId" class="input" placeholder="например: 1" />
               </div>
               <div class="field">
                 <label class="label">Язык</label>
@@ -101,14 +120,6 @@
 
             <div class="muted" id="ovMeta"></div>
           </div>
-
-          <div class="card">
-            <div class="cardTitle">Подсказка по ETL</div>
-            <div class="muted">
-              ETL берёт partner_movies.json и проверяет override через <code>/overrides/{movie_id}?lang=...</code>.
-              Если override есть — источник <b>cms</b>, иначе <b>partner</b>.
-            </div>
-          </div>
         </div>
 
         <!-- ANALYTICS -->
@@ -116,8 +127,12 @@
           <div class="card">
             <div class="cardTitle">Аналитика (MVP)</div>
             <div class="muted">
-              По заданию нужен дашборд просмотров и активности. В твоём бэке пока нет endpoint’ов для событий,
-              поэтому тут сделан MVP-экран: место под графики + быстрые проверки.
+              Сюда логично повесить агрегаты по событиям: просмотры, watch-time, ошибки, активные пользователи.
+              Сейчас — минимальная заглушка.
+            </div>
+
+            <div class="row mt">
+              <button id="runChecks" class="btn btnPrimary">Проверить интеграции</button>
             </div>
 
             <div class="grid3 mt">
@@ -133,10 +148,6 @@
                 <div class="statLabel">Tracing</div>
                 <div class="statValue" id="statTracing">—</div>
               </div>
-            </div>
-
-            <div class="row mt">
-              <button id="runChecks" class="btn btnPrimary">Проверить интеграции</button>
             </div>
           </div>
         </div>
@@ -157,10 +168,6 @@
             <div class="field">
               <label class="label">Ответ</label>
               <pre id="obsOut" class="pre">—</pre>
-            </div>
-
-            <div class="hint">
-              Если /metrics открывается — метрики ок. Jaeger UI: <b>http://localhost:16686</b>.
             </div>
           </div>
         </div>

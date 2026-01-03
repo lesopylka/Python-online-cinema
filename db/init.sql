@@ -17,4 +17,6 @@ CREATE TABLE IF NOT EXISTS movies (
 );
 
 CREATE INDEX IF NOT EXISTS idx_movies_title ON movies (title);
-
+ALTER TABLE movies
+ADD COLUMN IF NOT EXISTS video_key TEXT;
+CREATE INDEX IF NOT EXISTS idx_movies_video_key ON movies (video_key);

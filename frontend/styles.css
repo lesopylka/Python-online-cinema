@@ -287,3 +287,20 @@ body{
   height: 36px;
   padding: 0 12px;
 }
+
+.topbar {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 16px;
+}
+
+.topbarCenter {
+  display: flex;
+  justify-content: center;
+}
+
+.topbarSearch {
+  width: min(300px, 100%);
+  height: min(30px);
+}
