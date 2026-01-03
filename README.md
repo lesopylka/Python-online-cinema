@@ -40,18 +40,12 @@ npm install
 ### Запуск проекта
 
 **Полезные порты:**
-
-Backend: http://localhost:8002
-
-Frontend: http://localhost:5173 
-
-Frontend ходит в backend по http://localhost:8002
-
-Jaeger UI: http://localhost:16686
-
-OTLP gRPC: localhost:4317
-
-OTLP HTTP: localhost:4318
+- Backend: http://localhost:8002
+- Frontend: http://localhost:5173 
+- Frontend ходит в backend по http://localhost:8002
+- Jaeger UI: http://localhost:16686
+- OTLP gRPC: localhost:4317
+- OTLP HTTP: localhost:4318
 
 
 **Запуск бекенда**
@@ -80,3 +74,5 @@ docker run --rm ^
 docker compose exec postgres psql -U cinema -d cinema -c "select count(*) from movies;"
 docker compose exec postgres psql -U cinema -d cinema -c "select movie_id,title,source_used from movies limit 10;"
 ```
+
+### Интерфейс:
