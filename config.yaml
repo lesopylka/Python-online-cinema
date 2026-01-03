@@ -12,5 +12,5 @@ metrics:
 
 tracing:
   enabled: true
-  endpoint: http://localhost:4317
+  endpoint: http://jaeger:4317
 

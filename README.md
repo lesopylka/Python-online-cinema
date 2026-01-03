@@ -55,6 +55,8 @@ uvicorn app.main:app --reload
 
 Запуска фронта
 ``` bash
+cd frontend
+npm install
 npm run dev
 ```
 Доступен по адресу 'http://localhost:5173'
