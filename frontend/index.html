@@ -1,13 +1,175 @@
 <!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>frontend</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Онлайн кинотеатр</title>
+  <link rel="stylesheet" href="./styles.css"/>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <nav class="nav">
+        <button class="navItem isActive" data-route="catalog">
+          <span class="navDot"></span> Каталог
+        </button>
+        <button class="navItem" data-route="override">
+          <span class="navDot"></span> Override
+        </button>
+        <button class="navItem" data-route="analytics">
+          <span class="navDot"></span> Аналитика
+        </button>
+        <button class="navItem" data-route="obs">
+          <span class="navDot"></span> Наблюдаемость
+        </button>
+      </nav>
+
+      <div class="sidebarFooter">
+        <div class="small">Jaeger UI:</div>
+        <a class="link" href="http://localhost:16686" target="_blank" rel="noreferrer">http://localhost:16686</a>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="topbarTitle" id="pageTitle">Каталог</div>
+
+        <div class="topbarSearch" id="topbarSearch">
+          <input id="q" class="input inputSm" placeholder="Поиск по названию…" autocomplete="off"/>
+        </div>
+      </header>
+
+      <section class="content">
+        <div class="page" id="page-catalog">
+          <div class="grid">
+            <div class="card">
+              <div class="cardTitle">Карточка фильма</div>
+              <div id="movieDetails" class="empty">
+                Выбери фильм из списка ниже.
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="cardTitle">Список</div>
+            <div id="list" class="listGrid"></div>
+
+            <div class="row spaceBetween">
+              <div class="muted" id="countLabel">—</div>
+              <div class="row">
+                <button id="prev" class="btn btnGhost">←</button>
+                <button id="next" class="btn btnGhost">→</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- OVERRIDE -->
+        <div class="page isHidden" id="page-override">
+          <div class="card">
+            <div class="cardTitle">Override описания</div>
+
+            <div class="row">
+              <div class="field grow">
+                <label class="label">Movie ID</label>
+                <input id="ovMovieId" class="input" placeholder="например: 101" />
+              </div>
+              <div class="field">
+                <label class="label">Язык</label>
+                <select id="ovLang" class="select">
+                  <option value="ru" selected>ru</option>
+                  <option value="en">en</option>
+                </select>
+              </div>
+              <div class="field">
+                <label class="label">editor_id (необязательно)</label>
+                <input id="ovEditor" class="input" placeholder="например: alina" />
+              </div>
+            </div>
+
+            <div class="row">
+              <button id="ovLoad" class="btn btnGhost">Загрузить override</button>
+              <button id="ovSave" class="btn btnPrimary">Сохранить override</button>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="field">
+              <label class="label">Описание (override)</label>
+              <textarea id="ovText" class="textarea" placeholder="Введи новое описание..."></textarea>
+            </div>
+
+            <div class="muted" id="ovMeta"></div>
+          </div>
+
+          <div class="card">
+            <div class="cardTitle">Подсказка по ETL</div>
+            <div class="muted">
+              ETL берёт partner_movies.json и проверяет override через <code>/overrides/{movie_id}?lang=...</code>.
+              Если override есть — источник <b>cms</b>, иначе <b>partner</b>.
+            </div>
+          </div>
+        </div>
+
+        <!-- ANALYTICS -->
+        <div class="page isHidden" id="page-analytics">
+          <div class="card">
+            <div class="cardTitle">Аналитика (MVP)</div>
+            <div class="muted">
+              По заданию нужен дашборд просмотров и активности. В твоём бэке пока нет endpoint’ов для событий,
+              поэтому тут сделан MVP-экран: место под графики + быстрые проверки.
+            </div>
+
+            <div class="grid3 mt">
+              <div class="stat">
+                <div class="statLabel">Ping</div>
+                <div class="statValue" id="statPing">—</div>
+              </div>
+              <div class="stat">
+                <div class="statLabel">Metrics</div>
+                <div class="statValue" id="statMetrics">—</div>
+              </div>
+              <div class="stat">
+                <div class="statLabel">Tracing</div>
+                <div class="statValue" id="statTracing">—</div>
+              </div>
+            </div>
+
+            <div class="row mt">
+              <button id="runChecks" class="btn btnPrimary">Проверить интеграции</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- OBS -->
+        <div class="page isHidden" id="page-obs">
+          <div class="card">
+            <div class="cardTitle">Наблюдаемость</div>
+
+            <div class="row">
+              <button id="btnPing" class="btn btnGhost">GET /ping</button>
+              <button id="btnHealth" class="btn btnGhost">GET /health</button>
+              <button id="btnMetrics" class="btn btnGhost">GET /metrics</button>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="field">
+              <label class="label">Ответ</label>
+              <pre id="obsOut" class="pre">—</pre>
+            </div>
+
+            <div class="hint">
+              Если /metrics открывается — метрики ок. Jaeger UI: <b>http://localhost:16686</b>.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="toastHost" id="toastHost"></div>
+    </main>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
 </html>

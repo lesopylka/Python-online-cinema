@@ -1,11 +1,10 @@
 import logging
 import os
-
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from confluent_kafka import Producer
 import psycopg
-
 from app.config import settings, load_config
 from app.observability import attach_observability
 
@@ -135,3 +134,69 @@ def get_override(movie_id: int, lang: str = "ru"):
         "editor_id": row[3],
         "updated_at": row[4].isoformat(),
     }
+
+#разрешаем фронту ходить в API из браузера (иначе будет CORS ошибка)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  #можно сузить до ["http://localhost:8080"] 
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.get("/movies")
+def list_movies(
+    q: str | None = None,
+    lang: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+):
+    """
+    Список фильмов из таблицы movies.
+    Поддерживает:
+    - q: поиск по подстроке title (ILIKE)
+    - lang: фильтр по language
+    - limit/offset: пагинация
+    """
+    if not DATABASE_URL:
+        raise HTTPException(status_code=500, detail="DATABASE_URL is not set")
+
+    limit = max(1, min(limit, 200))
+    offset = max(0, offset)
+
+    where = []
+    params: list = []
+
+    if q:
+        where.append("title ILIKE %s")
+        params.append(f"%{q}%")
+
+    if lang:
+        where.append("language = %s")
+        params.append(lang)
+
+    where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+
+    with psycopg.connect(DATABASE_URL) as conn:
+        rows = conn.execute(
+            f"""
+            SELECT movie_id, title, language, description, source_used, updated_at
+            FROM movies
+            {where_sql}
+            ORDER BY title
+            LIMIT %s OFFSET %s
+            """,
+            (*params, limit, offset),
+        ).fetchall()
+
+    return [
+        {
+            "movie_id": r[0],
+            "title": r[1],
+            "language": r[2],
+            "description": r[3],
+            "source_used": r[4],
+            "updated_at": r[5].isoformat() if r[5] else None,
+        }
+        for r in rows
+    ]

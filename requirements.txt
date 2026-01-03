@@ -23,3 +23,4 @@ opencv-python-headless==4.10.0.84
 roboflow==1.2.11
 requests==2.32.3
 opensearch-py==3.1.0
+confluent-kafka
