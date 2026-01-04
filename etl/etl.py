@@ -61,7 +61,8 @@ with psycopg.connect(DB) as conn:
             VALUES (%s, %s, %s, %s, %s)
             ON CONFLICT (movie_id)
             DO UPDATE SET
-                description = EXCLUDED.description,
+                description =git pull origin main
+ EXCLUDED.description,
                 source_used = EXCLUDED.source_used,
                 updated_at = NOW()
             """,
