@@ -78,5 +78,16 @@ services:
     volumes:
       - minio-data:/data
 
+  etl:
+    build: ./etl
+    environment:
+      DATABASE_URL: postgresql://cinema:cinema@postgres:5432/cinema
+      CMS_URL: http://backend:8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      backend:
+        condition: service_started
+
 volumes:
     minio-data:

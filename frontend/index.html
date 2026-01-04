@@ -46,40 +46,34 @@
       <section class="content">
         <!-- CATALOG -->
         <div class="page" id="page-catalog">
-          <div class="grid2">
-            <div class="card">
-              <div class="cardTitle">Результаты</div>
-              <div id="list" class="listGrid"></div>
+          <div class="card">
+            <div class="cardTitle" id="detailsTitle">Карточка</div>
 
-              <div class="row spaceBetween">
+            <div id="detailsHost" class="empty">
+              Выберите фильм или актёра из списка ниже.
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="cardTitle">Активность</div>
+            <pre id="activityLog" class="pre">—</pre>
+          </div>
+
+          <div class="card">
+            <div class="row spaceBetween">
+              <div class="tabs" id="entityTabs">
+                <button class="tabBtn isActive" data-entity="movies">Фильмы</button>
+                <button class="tabBtn" data-entity="actors">Актёры</button>
+              </div>
+
+              <div class="row">
                 <div class="muted" id="countLabel">—</div>
-                <div class="row">
-                  <button id="prev" class="btn btnGhost">←</button>
-                  <button id="next" class="btn btnGhost">→</button>
-                </div>
+                <button id="prev" class="btn btnGhost">←</button>
+                <button id="next" class="btn btnGhost">→</button>
               </div>
             </div>
 
-            <div class="card">
-              <div class="cardTitle">Фильм</div>
-
-              <div id="movieDetails" class="empty">
-                Выбери фильм из списка слева.
-              </div>
-
-              <div class="divider"></div>
-
-              <div class="cardTitle">Видео</div>
-
-              <div id="videoBlock" class="empty">
-                Выбери фильм, чтобы загрузить видео.
-              </div>
-
-              <div class="divider"></div>
-
-              <div class="cardTitle">Активность</div>
-              <pre id="activityLog" class="pre">—</pre>
-            </div>
+            <div id="list" class="listGrid" style="margin-top:12px;"></div>
           </div>
         </div>
 
@@ -161,6 +155,7 @@
               <button id="btnPing" class="btn btnGhost">GET /ping</button>
               <button id="btnHealth" class="btn btnGhost">GET /health</button>
               <button id="btnMetrics" class="btn btnGhost">GET /metrics</button>
+              <button id="btnLogs" class="btn btnGhost">GET /logs</button>
             </div>
 
             <div class="divider"></div>
@@ -169,6 +164,9 @@
               <label class="label">Ответ</label>
               <pre id="obsOut" class="pre">—</pre>
             </div>
+
+            <div class="divider"></div>
+
           </div>
         </div>
       </section>

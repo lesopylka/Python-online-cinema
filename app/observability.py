@@ -4,6 +4,9 @@ import sys
 import time
 from contextvars import ContextVar
 from typing import Callable
+from collections import deque
+from typing import Any
+
 from fastapi import FastAPI, Request, Response
 from prometheus_client import Counter, Histogram, CONTENT_TYPE_LATEST, generate_latest
 import json
@@ -33,6 +36,8 @@ HTTP_REQUEST_DURATION = Histogram(
     ["method", "path"], #лейблы для агрегации метрик
 )
 
+LOG_BUFFER: deque[dict[str, Any]] = deque(maxlen=500) #буфер для хранения последних логов в памяти (для UI)
+
 
 class JsonFormatter(logging.Formatter):
     """
@@ -40,12 +45,10 @@ class JsonFormatter(logging.Formatter):
     Используется для унифицированного представления логов приложения.
     """
 
-    def format(self, record: logging.LogRecord) -> str:
+    def to_dict(self, record: logging.LogRecord) -> dict:
         """
-        Преобразует объект LogRecord в JSON-строку.
-
-        :param record: объект лог-записи logging
-        :return: строка в формате JSON
+        Преобразует объект LogRecord в словарь.
+        Используется и для stdout-логов, и для буфера /logs.
         """
 
         #словарь с данными лога
@@ -69,7 +72,37 @@ class JsonFormatter(logging.Formatter):
         if record.exc_info: #проверяем наличие исключения
             msg["exc_info"] = self.formatException(record.exc_info) #добавляем стек исключения в лог
 
-        return json.dumps(msg, ensure_ascii=False, separators=(",", ":")) #cловарь сериализуем в JSON-строку
+        return msg
+
+    def format(self, record: logging.LogRecord) -> str:
+        """
+        Преобразует объект LogRecord в JSON-строку.
+
+        :param record: объект лог-записи logging
+        :return: строка в формате JSON
+        """
+
+        return json.dumps(self.to_dict(record), ensure_ascii=False, separators=(",", ":")) #cловарь сериализуем в JSON-строку
+
+
+class BufferHandler(logging.Handler):
+    """
+    Хендлер для записи структурированных логов в память.
+    Нужен чтобы UI мог показать последние N логов через endpoint /logs.
+    """
+
+    def __init__(self, buf: deque):
+        super().__init__()
+        self.buf = buf
+
+    def emit(self, record: logging.LogRecord) -> None:
+        fmt = self.formatter
+        if not isinstance(fmt, JsonFormatter):
+            return
+        try:
+            self.buf.append(fmt.to_dict(record))
+        except Exception:
+            pass
 
 
 def setup_logging(level: str) -> None:
@@ -85,6 +118,10 @@ def setup_logging(level: str) -> None:
     handler = logging.StreamHandler(sys.stdout) #создаем хендлер вывода логов в stdout
     handler.setFormatter(JsonFormatter()) #к хендлеру привязываем JSON-форматтер
     root.addHandler(handler) #хендлер добавляется к корневому логгеру
+
+    buf_handler = BufferHandler(LOG_BUFFER) #создаем хендлер для буфера логов
+    buf_handler.setFormatter(JsonFormatter()) #к нему тоже привязываем JSON-форматтер
+    root.addHandler(buf_handler) #добавляем хендлер в корневой логгер
 
     logging.getLogger("uvicorn.access").setLevel("WARNING") #отключаем access-логи uvicorn
 
@@ -107,6 +144,16 @@ def attach_observability(app: FastAPI, config: dict) -> None:
     """
     setup_tracing(config)
     setup_logging(config["logging"]["level"]) #инициализируем логирование с уровнем из конфига
+
+    @app.get("/logs")
+    def logs(limit: int = 100):
+        """
+        HTTP-endpoint для отдачи последних логов в JSON.
+        Используется фронтом на странице "Наблюдаемость".
+        """
+        limit = max(1, min(int(limit), 500))
+        items = list(LOG_BUFFER)[-limit:]
+        return {"items": items}
 
     if config["metrics"]["enabled"]: #проверка включены ли метрики
 
@@ -133,7 +180,29 @@ def attach_observability(app: FastAPI, config: dict) -> None:
                 status = response.status_code #сохраняем HTTP-статус ответа
                 response.headers["x-request-id"] = rid #request_id добавляем в заголовок ответа
                 log.info("request processed")
+
+                span = get_current_span()
+                ctx = span.get_span_context()
+
+                item = {
+                    "ts": int(time.time() * 1000),
+                    "level": "INFO",
+                    "logger": "app",
+                    "msg": "request processed",
+                    "module": "observability",
+                    "func": "metrics_middleware",
+                    "line": 135,
+                    "request_id": rid,
+                }
+
+                if ctx.is_valid:
+                    item["trace_id"] = format(ctx.trace_id, "032x")
+
+                LOG_BUFFER.append(item)
+
                 return response
+
+
             finally:
                 elapsed = time.perf_counter() - start #длительность обработки запроса
                 path = _normalize_path(request.url.path) #нормализуем путь запроса
@@ -162,7 +231,7 @@ def attach_observability(app: FastAPI, config: dict) -> None:
                 media_type=CONTENT_TYPE_LATEST, #тип контента ответа
             )
         
-    FastAPIInstrumentor.instrument_app(app)       
+    FastAPIInstrumentor.instrument_app(app)
 
 
 def _gen_request_id() -> str:
@@ -173,6 +242,7 @@ def _gen_request_id() -> str:
     """
 
     return secrets.token_hex(16) #генерируется случайный request_id
+
 
 def setup_tracing(config: dict) -> None:
     """
@@ -202,5 +272,3 @@ def setup_tracing(config: dict) -> None:
     trace.set_tracer_provider(provider)
 
     LoggingInstrumentor().instrument(set_logging_format=False)
-
-

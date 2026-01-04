@@ -304,3 +304,35 @@ body{
   width: min(300px, 100%);
   height: min(30px);
 }
+
+.tabs{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+}
+
+.tabBtn{
+  border:1px solid var(--line);
+  border-radius: 999px;
+  padding:8px 12px;
+  background: rgba(255,255,255,.02);
+  color: var(--text);
+  cursor:pointer;
+  transition: transform .08s ease, background .2s ease, border-color .2s ease;
+  font-weight: 700;
+  font-size: 13px;
+}
+.tabBtn:hover{transform: translateY(-1px); background: rgba(255,255,255,.05)}
+.tabBtn.isActive{border-color: rgba(106,166,255,.45); background: rgba(106,166,255,.14)}
+
+.playerWrap{
+  display:flex;
+  justify-content:center;
+}
+
+.player{
+  width: 520px;
+  max-width: 100%;
+  border-radius:14px;
+  background:#000;
+}

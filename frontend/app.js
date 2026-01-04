@@ -2,11 +2,15 @@ const qs = (s) => document.querySelector(s)
 
 const state = {
   route: "catalog",
-  apiBase: localStorage.getItem("apiBase") || "http://localhost:8002",
+  apiBase: localStorage.getItem("apiBase") || "http://localhost:8000",
+
+  entity: "movies",
+
   items: [],
   total: 0,
   limit: 12,
   offset: 0,
+
   selected: null,
   debounce: null,
 }
@@ -30,6 +34,8 @@ function setRoute(route) {
   document.querySelectorAll(".navItem").forEach(b => b.classList.toggle("isActive", b.dataset.route === route))
   document.querySelectorAll(".page").forEach(p => p.classList.add("isHidden"))
   qs(`#page-${route}`).classList.remove("isHidden")
+
+  if (route === "obs") loadLogs()
 }
 
 function apiUrl(path) {
@@ -40,7 +46,6 @@ async function safeFetch(path, opts = {}) {
   return fetch(apiUrl(path), {
     ...opts,
     headers: {
-      "Content-Type": "application/json",
       ...(opts.headers || {}),
     },
   })
@@ -55,16 +60,24 @@ function escapeHtml(s) {
     .replaceAll("'", "&#039;")
 }
 
-function renderDetails(m) {
-  const host = qs("#movieDetails")
+function setDetailsEmpty() {
+  qs("#detailsTitle").textContent = "Карточка"
+  qs("#detailsHost").innerHTML = `<div class="empty">Выберите фильм или актёра из списка ниже.</div>`
+}
+
+function renderMovieDetails(m) {
+  const host = qs("#detailsHost")
+  qs("#detailsTitle").textContent = "Фильм"
 
   if (!m) {
-    host.innerHTML = `<div class="empty">Выбери фильм из списка слева.</div>`
+    host.innerHTML = `<div class="empty">Выберите фильм из списка ниже.</div>`
     return
   }
 
   const desc = (m.override?.description ?? m.description ?? "").trim() || "— нет описания —"
   const videoUrl = m.video?.url ? `${state.apiBase}${m.video.url}` : `${state.apiBase}/stream/${m.movie_id}.mp4`
+
+  const actors = Array.isArray(m.actors) ? m.actors : []
 
   host.innerHTML = `
     <div style="font-weight:900;font-size:18px;">${escapeHtml(m.title || "Без названия")}</div>
@@ -84,25 +97,42 @@ function renderDetails(m) {
 
     <div style="height:14px"></div>
 
+    <div class="muted">Актёры</div>
+    <div style="margin-top:8px; display:grid; gap:8px;">
+      ${actors.length ? actors.map(a => `
+        <div class="movieCard" data-actor-id="${a.actor_id}">
+          <div class="movieTitle">${escapeHtml(a.full_name || "Без имени")}</div>
+          <div class="movieMeta">
+            <span class="badge">id: ${a.actor_id}</span>
+            <span class="badge">${escapeHtml(a.role_name || "—")}</span>
+            <span class="badge">${escapeHtml(a.birth_date || "—")}</span>
+          </div>
+        </div>
+      `).join("") : `<div class="empty">Нет актёров для этого фильма.</div>`}
+    </div>
+
+    <div class="divider"></div>
+
     <div class="muted">Видео</div>
-    <div style="margin-top:8px;">
-      <video id="player" controls preload="metadata" style="width:100%; border-radius:14px; background:#000;">
+    <div style="margin-top:8px;" class="playerWrap">
+      <video id="player" class="player" controls preload="metadata">
         <source src="${videoUrl}" type="video/mp4" />
       </video>
-      <div class="muted" style="margin-top:8px; font-size:12px;">
-        Если видео 404 — положи файл <b>${m.movie_id}.mp4</b> в папку <b>./videos</b> на хосте и пробрось её в backend.
-      </div>
+    </div>
+
+    <div class="muted" style="margin-top:8px; font-size:12px;">
+      Если видео 404 — положи файл <b>${m.movie_id}.mp4</b> в папку <b>./videos</b> на хосте и пробрось её в backend.
     </div>
 
     <div style="height:14px"></div>
 
     <div class="row">
-      <button class="btn btnGhost" id="copyId">Скопировать id</button>
+      <button class="btn btnGhost" id="copyMovieId">Скопировать id</button>
       <button class="btn btnPrimary" id="toOverride">Override</button>
     </div>
   `
 
-  qs("#copyId").onclick = async () => {
+  qs("#copyMovieId").onclick = async () => {
     await navigator.clipboard.writeText(String(m.movie_id))
     toast("ok", "Скопировано", `movie_id = ${m.movie_id}`)
   }
@@ -112,6 +142,14 @@ function renderDetails(m) {
     qs("#ovLang").value = (m.language || "ru")
     setRoute("override")
   }
+
+  host.querySelectorAll("[data-actor-id]").forEach(el => {
+    el.onclick = () => {
+      const id = Number(el.getAttribute("data-actor-id"))
+      if (!id) return
+      openActor(id)
+    }
+  })
 
   const player = qs("#player")
   if (player) {
@@ -130,6 +168,67 @@ function renderDetails(m) {
   }
 }
 
+function renderActorDetails(a) {
+  const host = qs("#detailsHost")
+  qs("#detailsTitle").textContent = "Актёр"
+
+  if (!a) {
+    host.innerHTML = `<div class="empty">Выберите актёра из списка ниже.</div>`
+    return
+  }
+
+  const movies = Array.isArray(a.movies) ? a.movies : []
+
+  host.innerHTML = `
+    <div style="font-weight:900;font-size:18px;">${escapeHtml(a.full_name || "Без имени")}</div>
+
+    <div style="height:10px"></div>
+
+    <div class="movieMeta">
+      <span class="badge">id: ${a.actor_id}</span>
+      <span class="badge">${escapeHtml(a.birth_date || "—")}</span>
+    </div>
+
+    <div style="height:14px"></div>
+
+    <div class="row">
+      <button class="btn btnGhost" id="copyActorId">Скопировать id</button>
+      <button class="btn btnGhost" id="toActorsTab">Открыть в каталоге актёров</button>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="muted">Фильмы</div>
+    <div style="margin-top:8px; display:grid; gap:8px;">
+      ${movies.length ? movies.map(m => `
+        <div class="movieCard" data-movie-id="${m.movie_id}">
+          <div class="movieTitle">${escapeHtml(m.title || "Без названия")}</div>
+          <div class="movieMeta">
+            <span class="badge">id: ${m.movie_id}</span>
+            <span class="badge">${escapeHtml(m.role_name || "—")}</span>
+          </div>
+        </div>
+      `).join("") : `<div class="empty">Нет фильмов для этого актёра.</div>`}
+    </div>
+  `
+
+  qs("#copyActorId").onclick = async () => {
+    await navigator.clipboard.writeText(String(a.actor_id))
+    toast("ok", "Скопировано", `actor_id = ${a.actor_id}`)
+  }
+
+  qs("#toActorsTab").onclick = () => setEntity("actors")
+
+  host.querySelectorAll("[data-movie-id]").forEach(el => {
+    el.onclick = () => {
+      const id = Number(el.getAttribute("data-movie-id"))
+      if (!id) return
+      setEntity("movies")
+      openMovie(id)
+    }
+  })
+}
+
 function renderList() {
   const list = qs("#list")
   list.innerHTML = ""
@@ -140,19 +239,35 @@ function renderList() {
     return
   }
 
-  for (const m of state.items) {
-    const el = document.createElement("div")
-    el.className = "movieCard"
-    el.innerHTML = `
-      <div class="movieTitle">${escapeHtml(m.title || "Без названия")}</div>
-      <div class="movieMeta">
-        <span class="badge">id: ${m.movie_id}</span>
-        <span class="badge">${escapeHtml(m.language || "—")}</span>
-        <span class="badge ${m.source_used === "cms" ? "ok" : "warn"}">${escapeHtml(m.source_used || "—")}</span>
-      </div>
-    `
-    el.onclick = () => openMovie(m.movie_id)
-    list.appendChild(el)
+  if (state.entity === "movies") {
+    for (const m of state.items) {
+      const el = document.createElement("div")
+      el.className = "movieCard"
+      el.innerHTML = `
+        <div class="movieTitle">${escapeHtml(m.title || "Без названия")}</div>
+        <div class="movieMeta">
+          <span class="badge">id: ${m.movie_id}</span>
+          <span class="badge">${escapeHtml(m.language || "—")}</span>
+          <span class="badge ${m.source_used === "cms" ? "ok" : "warn"}">${escapeHtml(m.source_used || "—")}</span>
+        </div>
+      `
+      el.onclick = () => openMovie(m.movie_id)
+      list.appendChild(el)
+    }
+  } else {
+    for (const a of state.items) {
+      const el = document.createElement("div")
+      el.className = "movieCard"
+      el.innerHTML = `
+        <div class="movieTitle">${escapeHtml(a.full_name || "Без имени")}</div>
+        <div class="movieMeta">
+          <span class="badge">id: ${a.actor_id}</span>
+          <span class="badge">${escapeHtml(a.birth_date || "—")}</span>
+        </div>
+      `
+      el.onclick = () => openActor(a.actor_id)
+      list.appendChild(el)
+    }
   }
 
   const start = state.total ? (state.offset + 1) : (state.offset + 1)
@@ -170,13 +285,29 @@ async function openMovie(movieId) {
     }
     const data = await r.json()
     state.selected = data
-    renderDetails(data)
+    renderMovieDetails(data)
   } catch (e) {
     toast("bad", "Failed to fetch", String(e))
   }
 }
 
-async function loadMovies() {
+async function openActor(actorId) {
+  try {
+    const r = await safeFetch(`/actors/${actorId}`)
+    if (!r.ok) {
+      const t = await r.text()
+      toast("bad", "Ошибка /actors/{id}", `${r.status}: ${t.slice(0, 200)}`)
+      return
+    }
+    const data = await r.json()
+    state.selected = data
+    renderActorDetails(data)
+  } catch (e) {
+    toast("bad", "Failed to fetch", String(e))
+  }
+}
+
+async function loadList() {
   const q = qs("#q").value.trim()
 
   const params = new URLSearchParams()
@@ -184,11 +315,15 @@ async function loadMovies() {
   params.set("limit", String(state.limit))
   params.set("offset", String(state.offset))
 
+  const path = state.entity === "movies"
+    ? `/movies?${params.toString()}`
+    : `/actors?${params.toString()}`
+
   try {
-    const r = await safeFetch(`/movies?${params.toString()}`)
+    const r = await safeFetch(path)
     if (!r.ok) {
       const t = await r.text()
-      toast("bad", "Не удалось загрузить фильмы", `${r.status}: ${t.slice(0, 200)}`)
+      toast("bad", "Не удалось загрузить список", `${r.status}: ${t.slice(0, 200)}`)
       state.items = []
       state.total = 0
       renderList()
@@ -198,7 +333,6 @@ async function loadMovies() {
     const data = await r.json()
     state.items = data.items || []
     state.total = data.total ?? 0
-
     renderList()
   } catch (e) {
     toast("bad", "Failed to fetch", String(e))
@@ -206,6 +340,22 @@ async function loadMovies() {
     state.total = 0
     renderList()
   }
+}
+
+function setEntity(entity) {
+  if (state.entity === entity) return
+
+  state.entity = entity
+  state.offset = 0
+  state.items = []
+  state.total = 0
+  state.selected = null
+
+  document.querySelectorAll(".tabBtn").forEach(b => b.classList.toggle("isActive", b.dataset.entity === entity))
+
+  qs("#q").placeholder = entity === "movies" ? "Поиск по названию..." : "Поиск по имени..."
+  setDetailsEmpty()
+  loadList()
 }
 
 async function loadOverride() {
@@ -245,6 +395,7 @@ async function saveOverride() {
     const r = await safeFetch(`/overrides`, {
       method: "POST",
       body: JSON.stringify({ movie_id: movieId, language, description, editor_id }),
+      headers: { "Content-Type": "application/json" },
     })
     if (!r.ok) {
       const t = await r.text()
@@ -261,16 +412,48 @@ async function saveOverride() {
 
 async function obsGet(path) {
   try {
-    const r = await safeFetch(path, { headers: { "Content-Type": "text/plain" } })
+    const r = await safeFetch(path)
+    const ct = (r.headers.get("content-type") || "").toLowerCase()
     const text = await r.text()
+
+    if (ct.includes("application/json")) {
+      try {
+        const obj = JSON.parse(text)
+        qs("#obsOut").textContent = `GET ${path}\n\n` + JSON.stringify(obj, null, 2)
+        return
+      } catch (_) {
+        qs("#obsOut").textContent = `GET ${path}\n\n${text}`
+        return
+      }
+    }
+
     qs("#obsOut").textContent = `GET ${path}\n\n${text}`
   } catch (e) {
     qs("#obsOut").textContent = `GET ${path}\n\n${String(e)}`
   }
 }
 
+
+async function loadLogs() {
+  const out = qs("#logsOut")
+  if (!out) return
+
+  try {
+    const r = await safeFetch("/logs?limit=120")
+    if (!r.ok) {
+      const t = await r.text()
+      out.textContent = `${r.status}\n${t.slice(0, 400)}`
+      return
+    }
+    const data = await r.json()
+    out.textContent = JSON.stringify(data.items || [], null, 2) || "—"
+  } catch (e) {
+    out.textContent = String(e)
+  }
+}
+
 function logEvent(type, movieId, extra = {}) {
-  const out = qs("#activityOut")
+  const out = qs("#activityLog")
   if (!out) return
   const line = `${new Date().toLocaleTimeString()} • ${type} • movie_id=${movieId}${extra.t != null ? ` • t=${extra.t}s` : ""}`
   out.textContent = (out.textContent === "—" ? line : `${line}\n${out.textContent}`)
@@ -280,22 +463,31 @@ function init() {
   document.querySelectorAll(".navItem").forEach(b => b.onclick = () => setRoute(b.dataset.route))
 
   const refreshBtn = qs("#refresh")
-  if (refreshBtn) refreshBtn.onclick = () => { state.offset = 0; loadMovies() }
+  if (refreshBtn) refreshBtn.onclick = () => { state.offset = 0; loadList() }
 
-  qs("#prev").onclick = () => { state.offset = Math.max(0, state.offset - state.limit); loadMovies() }
-  qs("#next").onclick = () => { state.offset = state.offset + state.limit; loadMovies() }
+  qs("#prev").onclick = () => { state.offset = Math.max(0, state.offset - state.limit); loadList() }
+  qs("#next").onclick = () => { state.offset = state.offset + state.limit; loadList() }
 
   qs("#q").addEventListener("input", () => {
     clearTimeout(state.debounce)
-    state.debounce = setTimeout(() => { state.offset = 0; loadMovies() }, 250)
+    state.debounce = setTimeout(() => { state.offset = 0; loadList() }, 250)
+  })
+
+  document.querySelectorAll(".tabBtn").forEach(b => {
+    b.onclick = () => setEntity(b.dataset.entity)
   })
 
   qs("#ovLoad").onclick = loadOverride
   qs("#ovSave").onclick = saveOverride
 
-  qs("#btnPing").onclick = () => obsGet("/ping")
-  qs("#btnHealth").onclick = () => obsGet("/health")
-  qs("#btnMetrics").onclick = () => obsGet("/metrics")
+  qs("#btnPing").onclick = async () => { await obsGet("/ping"); loadLogs() }
+  qs("#btnHealth").onclick = async () => { await obsGet("/health"); loadLogs() }
+  qs("#btnMetrics").onclick = async () => { await obsGet("/metrics"); loadLogs() }
+  qs("#btnLogs").onclick = async () => {
+    await obsGet("/logs")
+    await loadLogs()
+  }
+
 
   qs("#runChecks").onclick = async () => {
     try {
@@ -316,7 +508,8 @@ function init() {
     toast("ok", "Проверка", "Готово")
   }
 
-  loadMovies()
+  setDetailsEmpty()
+  loadList()
 }
 
 init()
