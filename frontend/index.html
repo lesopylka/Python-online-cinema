@@ -35,7 +35,7 @@
         <div class="topbarTitle" id="pageTitle">Каталог</div>
 
         <div class="topbarCenter">
-          <input id="q" class="input topbarSearch" placeholder="Поиск по названию..." autocomplete="off"/>
+          <input id="q" class="input topbarSearch" placeholder="Поиск..." autocomplete="off"/>
         </div>
 
         <div class="topbarRight">
@@ -47,33 +47,54 @@
         <!-- CATALOG -->
         <div class="page" id="page-catalog">
           <div class="card">
-            <div class="cardTitle" id="detailsTitle">Карточка</div>
+            <div class="row spaceBetween" style="margin-bottom:12px;">
+              <div class="cardTitle" style="margin:0;">Каталог</div>
 
-            <div id="detailsHost" class="empty">
-              Выберите фильм или актёра из списка ниже.
+              <div class="row" style="gap:8px;">
+                <button class="btn btnGhost btnSm tabBtn isActive" data-tab="movies">Фильмы</button>
+                <button class="btn btnGhost btnSm tabBtn" data-tab="actors">Актеры</button>
+              </div>
             </div>
+
+            <div id="tab-movies">
+              <div id="listMovies" class="listGrid"></div>
+
+              <div class="row spaceBetween" style="margin-top:12px;">
+                <div class="muted" id="countLabelMovies">—</div>
+                <div class="row">
+                  <button id="prevMovies" class="btn btnGhost">←</button>
+                  <button id="nextMovies" class="btn btnGhost">→</button>
+                </div>
+              </div>
+            </div>
+
+            <div id="tab-actors" class="isHidden">
+              <div id="listActors" class="listGrid"></div>
+
+              <div class="row spaceBetween" style="margin-top:12px;">
+                <div class="muted" id="countLabelActors">—</div>
+                <div class="row">
+                  <button id="prevActors" class="btn btnGhost">←</button>
+                  <button id="nextActors" class="btn btnGhost">→</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="cardTitle">Карточка</div>
+
+            <div id="details" class="empty">Выбери фильм или актера</div>
+
+            <div class="divider"></div>
+
+            <div class="cardTitle">Видео</div>
+            <div id="videoBlock" class="empty">Выберите фильм</div>
 
             <div class="divider"></div>
 
             <div class="cardTitle">Активность</div>
             <pre id="activityLog" class="pre">—</pre>
-          </div>
-
-          <div class="card">
-            <div class="row spaceBetween">
-              <div class="tabs" id="entityTabs">
-                <button class="tabBtn isActive" data-entity="movies">Фильмы</button>
-                <button class="tabBtn" data-entity="actors">Актёры</button>
-              </div>
-
-              <div class="row">
-                <div class="muted" id="countLabel">—</div>
-                <button id="prev" class="btn btnGhost">←</button>
-                <button id="next" class="btn btnGhost">→</button>
-              </div>
-            </div>
-
-            <div id="list" class="listGrid" style="margin-top:12px;"></div>
           </div>
         </div>
 
@@ -120,10 +141,7 @@
         <div class="page isHidden" id="page-analytics">
           <div class="card">
             <div class="cardTitle">Аналитика (MVP)</div>
-            <div class="muted">
-              Сюда логично повесить агрегаты по событиям: просмотры, watch-time, ошибки, активные пользователи.
-              Сейчас — минимальная заглушка.
-            </div>
+            <div class="muted">Минимальная заглушка.</div>
 
             <div class="row mt">
               <button id="runChecks" class="btn btnPrimary">Проверить интеграции</button>
@@ -155,7 +173,7 @@
               <button id="btnPing" class="btn btnGhost">GET /ping</button>
               <button id="btnHealth" class="btn btnGhost">GET /health</button>
               <button id="btnMetrics" class="btn btnGhost">GET /metrics</button>
-              <button id="btnLogs" class="btn btnGhost">GET /logs</button>
+              <button id="btnLogs" class="btn btnPrimary">GET /logs</button>
             </div>
 
             <div class="divider"></div>
@@ -164,9 +182,6 @@
               <label class="label">Ответ</label>
               <pre id="obsOut" class="pre">—</pre>
             </div>
-
-            <div class="divider"></div>
-
           </div>
         </div>
       </section>

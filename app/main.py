@@ -1,16 +1,15 @@
 import logging
 import os
 from pathlib import Path
+
 import psycopg
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+
 from app.config import load_config
 from app.observability import attach_observability
-from app.observability import LOG_BUFFER
-
-
 
 config = load_config("config.yaml")
 log = logging.getLogger("app")
@@ -29,6 +28,12 @@ class OverrideIn(BaseModel):
     editor_id: str | None = None
 
 
+def db_conn():
+    if not DATABASE_URL:
+        raise HTTPException(status_code=500, detail="DATABASE_URL is not set")
+    return psycopg.connect(DATABASE_URL)
+
+
 @app.get("/ping")
 def ping():
     log.info("ping called")
@@ -42,10 +47,7 @@ def health():
 
 @app.post("/overrides")
 def upsert_override(payload: OverrideIn):
-    if not DATABASE_URL:
-        raise HTTPException(status_code=500, detail="DATABASE_URL is not set")
-
-    with psycopg.connect(DATABASE_URL) as conn:
+    with db_conn() as conn:
         conn.execute(
             """
             INSERT INTO movie_description_overrides
@@ -65,10 +67,7 @@ def upsert_override(payload: OverrideIn):
 
 @app.get("/overrides/{movie_id}")
 def get_override(movie_id: int, lang: str = "ru"):
-    if not DATABASE_URL:
-        raise HTTPException(status_code=500, detail="DATABASE_URL is not set")
-
-    with psycopg.connect(DATABASE_URL) as conn:
+    with db_conn() as conn:
         row = conn.execute(
             """
             SELECT movie_id, language, description, editor_id, updated_at
@@ -92,9 +91,6 @@ def get_override(movie_id: int, lang: str = "ru"):
 
 @app.get("/movies")
 def list_movies(q: str | None = None, lang: str | None = None, limit: int = 50, offset: int = 0):
-    if not DATABASE_URL:
-        raise HTTPException(status_code=500, detail="DATABASE_URL is not set")
-
     limit = max(1, min(int(limit), 200))
     offset = max(0, int(offset))
 
@@ -111,7 +107,7 @@ def list_movies(q: str | None = None, lang: str | None = None, limit: int = 50, 
 
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
 
-    with psycopg.connect(DATABASE_URL) as conn:
+    with db_conn() as conn:
         total = conn.execute(
             f"SELECT COUNT(*) FROM movies {where_sql}",
             params,
@@ -145,10 +141,7 @@ def list_movies(q: str | None = None, lang: str | None = None, limit: int = 50, 
 
 @app.get("/movies/{movie_id}")
 def get_movie(movie_id: int, lang: str = "ru"):
-    if not DATABASE_URL:
-        raise HTTPException(status_code=500, detail="DATABASE_URL is not set")
-
-    with psycopg.connect(DATABASE_URL) as conn:
+    with db_conn() as conn:
         row = conn.execute(
             """
             SELECT movie_id, title, language, description, source_used, updated_at
@@ -170,17 +163,6 @@ def get_movie(movie_id: int, lang: str = "ru"):
             (movie_id, lang),
         ).fetchone()
 
-        actors = conn.execute(
-            """
-            SELECT a.actor_id, a.full_name, a.birth_date, ma.role_name
-            FROM movie_actors ma
-            JOIN actors a ON a.actor_id = ma.actor_id
-            WHERE ma.movie_id = %s
-            ORDER BY a.full_name
-            """,
-            (movie_id,),
-        ).fetchall()
-
     movie = {
         "movie_id": row[0],
         "title": row[1],
@@ -190,15 +172,6 @@ def get_movie(movie_id: int, lang: str = "ru"):
         "updated_at": row[5].isoformat() if row[5] else None,
         "override": None,
         "video": {"url": f"/stream/{row[0]}.mp4"},
-        "actors": [
-            {
-                "actor_id": a[0],
-                "full_name": a[1],
-                "birth_date": a[2].isoformat() if a[2] else None,
-                "role_name": a[3],
-            }
-            for a in actors
-        ],
     }
 
     if ovr:
@@ -211,11 +184,35 @@ def get_movie(movie_id: int, lang: str = "ru"):
     return movie
 
 
+@app.get("/movies/{movie_id}/actors")
+def movie_actors(movie_id: int):
+    with db_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT a.actor_id, a.full_name, a.birth_date, ma.role_name
+            FROM movie_actors ma
+            JOIN actors a ON a.actor_id = ma.actor_id
+            WHERE ma.movie_id = %s
+            ORDER BY a.full_name
+            """,
+            (movie_id,),
+        ).fetchall()
+
+    return {
+        "items": [
+            {
+                "actor_id": r[0],
+                "full_name": r[1],
+                "birth_date": r[2].isoformat() if r[2] else None,
+                "role_name": r[3],
+            }
+            for r in rows
+        ]
+    }
+
+
 @app.get("/actors")
 def list_actors(q: str | None = None, limit: int = 50, offset: int = 0):
-    if not DATABASE_URL:
-        raise HTTPException(status_code=500, detail="DATABASE_URL is not set")
-
     limit = max(1, min(int(limit), 200))
     offset = max(0, int(offset))
 
@@ -228,7 +225,7 @@ def list_actors(q: str | None = None, limit: int = 50, offset: int = 0):
 
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
 
-    with psycopg.connect(DATABASE_URL) as conn:
+    with db_conn() as conn:
         total = conn.execute(
             f"SELECT COUNT(*) FROM actors {where_sql}",
             params,
@@ -245,25 +242,25 @@ def list_actors(q: str | None = None, limit: int = 50, offset: int = 0):
             (*params, limit, offset),
         ).fetchall()
 
-    items = [
-        {
-            "actor_id": r[0],
-            "full_name": r[1],
-            "birth_date": r[2].isoformat() if r[2] else None,
-            "updated_at": r[3].isoformat() if r[3] else None,
-        }
-        for r in rows
-    ]
-
-    return {"items": items, "total": total, "limit": limit, "offset": offset}
+    return {
+        "items": [
+            {
+                "actor_id": r[0],
+                "full_name": r[1],
+                "birth_date": r[2].isoformat() if r[2] else None,
+                "updated_at": r[3].isoformat() if r[3] else None,
+            }
+            for r in rows
+        ],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
 
 
 @app.get("/actors/{actor_id}")
 def get_actor(actor_id: int):
-    if not DATABASE_URL:
-        raise HTTPException(status_code=500, detail="DATABASE_URL is not set")
-
-    with psycopg.connect(DATABASE_URL) as conn:
+    with db_conn() as conn:
         row = conn.execute(
             """
             SELECT actor_id, full_name, birth_date, updated_at
@@ -292,7 +289,10 @@ def get_actor(actor_id: int):
         "full_name": row[1],
         "birth_date": row[2].isoformat() if row[2] else None,
         "updated_at": row[3].isoformat() if row[3] else None,
-        "movies": [{"movie_id": m[0], "title": m[1], "role_name": m[2]} for m in movies],
+        "movies": [
+            {"movie_id": r[0], "title": r[1], "role_name": r[2]}
+            for r in movies
+        ],
     }
 
 
