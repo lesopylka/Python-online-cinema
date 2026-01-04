@@ -1,0 +1,26 @@
+[
+  {
+    "movie_id": 1,
+    "title": "Inception",
+    "language": "ru",
+    "description": "Партнёрское описание.",
+    "actors": [
+      {"actor_id": 101, "full_name": "Leonardo DiCaprio", "role_name": "Cobb"},
+      {"actor_id": 102, "full_name": "Joseph Gordon-Levitt", "role_name": "Arthur"},
+      {"actor_id": 103, "full_name": "Elliot Page", "role_name": "Ariadne"}
+    ]
+  },
+  {
+    "movie_id": 2,
+    "title": "Interstellar",
+    "language": "ru",
+    "description": "Партнёрское описание про космос.",
+    "actors": [
+      {"actor_id": 201, "full_name": "Matthew McConaughey", "role_name": "Cooper"},
+      {"actor_id": 202, "full_name": "Anne Hathaway", "role_name": "Brand"},
+      {"actor_id": 203, "full_name": "Jessica Chastain", "role_name": "Murph"}
+    ]
+  }
+]
+
+
