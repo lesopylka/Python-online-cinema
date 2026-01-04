@@ -25,7 +25,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def run_api_gateway(host: str = "0.0.0.0", port: int = 8000, reload: bool = False):
+def run_api_gateway(host: str = "0.0.0.0", port: int = 8001, reload: bool = False):
     """Запуск API Gateway."""
     from src.config.settings import settings
     from src.monitoring.logging_config import setup_logging
