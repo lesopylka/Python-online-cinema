@@ -16,10 +16,74 @@ const state = {
   actorsLimit: 12,
   actorsOffset: 0,
 
-  selectedType: null, // "movie" | "actor"
+  selectedType: null,
   selected: null,
 
   debounce: null,
+
+  playerBoundFor: null,
+  hbTimer: null,
+  progressTimer: null,
+}
+
+function clearActivity() {
+  const out = qs("#activityLog")
+  if (out) out.textContent = "—"
+}
+
+function logEvent(type, movieId, extra = {}) {
+  const out = qs("#activityLog")
+  if (!out) return
+
+  const line =
+    `${new Date().toLocaleTimeString()} • ${type} • movie_id=${movieId}` +
+    (extra.t != null ? ` • t=${extra.t}s` : "")
+
+  out.textContent = (out.textContent === "—" ? line : `${line}\n${out.textContent}`)
+}
+
+function stopPlayerTimers() {
+  if (state.hbTimer) { clearInterval(state.hbTimer); state.hbTimer = null }
+  if (state.progressTimer) { clearInterval(state.progressTimer); state.progressTimer = null }
+}
+
+function bindPlayerEvents(movie) {
+  stopPlayerTimers()
+
+  const player = qs("#player")
+  if (!player || !movie) return
+
+  state.playerBoundFor = movie.movie_id
+
+  player.addEventListener("play", () => {
+    logEvent("play", movie.movie_id)
+
+    if (!state.hbTimer) {
+      state.hbTimer = setInterval(() => {
+        logEvent("heartbeat", movie.movie_id, { t: Math.floor(player.currentTime || 0) })
+      }, 15000)
+    }
+
+    if (!state.progressTimer) {
+      state.progressTimer = setInterval(() => {
+        logEvent("progress", movie.movie_id, { t: Math.floor(player.currentTime || 0) })
+      }, 5000)
+    }
+  })
+
+  player.addEventListener("pause", () => {
+    logEvent("pause", movie.movie_id, { t: Math.floor(player.currentTime || 0) })
+    stopPlayerTimers()
+  })
+
+  player.addEventListener("ended", () => {
+    logEvent("stop", movie.movie_id, { t: Math.floor(player.currentTime || 0) })
+    stopPlayerTimers()
+  })
+
+  player.addEventListener("error", () => {
+    logEvent("error", movie.movie_id)
+  })
 }
 
 function toast(type, title, msg) {
@@ -48,8 +112,13 @@ function setTab(tab) {
   document.querySelectorAll(".tabBtn").forEach(b => b.classList.toggle("isActive", b.dataset.tab === tab))
   qs("#tab-movies").classList.toggle("isHidden", tab !== "movies")
   qs("#tab-actors").classList.toggle("isHidden", tab !== "actors")
+
+  stopPlayerTimers()
+  clearActivity()
+
   state.selected = null
   state.selectedType = null
+
   renderDetails(null)
   renderVideo(null)
 }
@@ -79,12 +148,17 @@ function escapeHtml(s) {
 
 function renderVideo(movie) {
   const host = qs("#videoBlock")
+
+  stopPlayerTimers()
+
   if (!movie) {
     host.innerHTML = `<div class="empty">Выберите фильм, чтобы загрузить видео.</div>`
     return
   }
 
-  const videoUrl = movie.video?.url ? `${state.apiBase}${movie.video.url}` : `${state.apiBase}/stream/${movie.movie_id}.mp4`
+  const videoUrl = movie.video?.url
+    ? `${state.apiBase}${movie.video.url}`
+    : `${state.apiBase}/stream/${movie.movie_id}.mp4`
 
   host.innerHTML = `
     <video id="player" controls preload="metadata"
@@ -134,7 +208,6 @@ function renderDetails(payload) {
 
   const m = payload.movie
   const actors = payload.actors || []
-
   const desc = (m.override?.description ?? m.description ?? "").trim() || "— нет описания —"
 
   host.innerHTML = `
@@ -210,7 +283,7 @@ function renderMoviesList() {
     list.appendChild(el)
   }
 
-  const start = state.moviesTotal ? (state.moviesOffset + 1) : (state.moviesOffset + 1)
+  const start = state.moviesOffset + 1
   const end = state.moviesOffset + state.movies.length
   qs("#countLabelMovies").textContent = state.moviesTotal ? `${start}–${end} из ${state.moviesTotal}` : `${start}–${end}`
 }
@@ -239,13 +312,16 @@ function renderActorsList() {
     list.appendChild(el)
   }
 
-  const start = state.actorsTotal ? (state.actorsOffset + 1) : (state.actorsOffset + 1)
+  const start = state.actorsOffset + 1
   const end = state.actorsOffset + state.actors.length
   qs("#countLabelActors").textContent = state.actorsTotal ? `${start}–${end} из ${state.actorsTotal}` : `${start}–${end}`
 }
 
 async function openMovie(movieId) {
   try {
+    clearActivity()
+    stopPlayerTimers()
+
     const r = await safeFetch(`/movies/${movieId}`)
     if (!r.ok) {
       const t = await r.text()
@@ -259,8 +335,6 @@ async function openMovie(movieId) {
     if (r2.ok) {
       const data = await r2.json()
       actors = data.items || []
-    } else {
-      actors = []
     }
 
     state.selectedType = "movie"
@@ -268,6 +342,8 @@ async function openMovie(movieId) {
 
     renderDetails({ type: "movie", movie, actors })
     renderVideo(movie)
+
+    bindPlayerEvents(movie)
   } catch (e) {
     toast("bad", "Failed to fetch", String(e))
   }
@@ -275,6 +351,9 @@ async function openMovie(movieId) {
 
 async function openActor(actorId) {
   try {
+    clearActivity()
+    stopPlayerTimers()
+
     const r = await safeFetch(`/actors/${actorId}`)
     if (!r.ok) {
       const t = await r.text()
