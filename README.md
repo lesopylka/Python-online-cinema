@@ -100,3 +100,7 @@ docker compose exec postgres psql -U cinema -d cinema -c "select movie_id,title,
 ```
 
 ## Интерфейс:
+
+https://github.com/user-attachments/assets/fbdebfe5-3960-4118-b165-35807831edf1
+
+
