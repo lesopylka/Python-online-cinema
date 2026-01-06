@@ -521,10 +521,13 @@ function init() {
   qs("#q").addEventListener("input", () => {
     clearTimeout(state.debounce)
     state.debounce = setTimeout(() => {
-      if (state.tab === "movies") { state.moviesOffset = 0; loadMovies() }
-      else { state.actorsOffset = 0; loadActors() }
+      state.moviesOffset = 0
+      state.actorsOffset = 0
+      loadMovies()
+      loadActors()
     }, 250)
   })
+
 
   qs("#ovLoad").onclick = loadOverride
   qs("#ovSave").onclick = saveOverride

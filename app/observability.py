@@ -6,7 +6,6 @@ from contextvars import ContextVar
 from typing import Callable
 from collections import deque
 from typing import Any
-
 from fastapi import FastAPI, Request, Response
 from prometheus_client import Counter, Histogram, CONTENT_TYPE_LATEST, generate_latest
 import json

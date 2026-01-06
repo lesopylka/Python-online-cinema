@@ -1,13 +1,12 @@
 import logging
 import os
-from pathlib import Path
-
+import re
 import psycopg
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import StreamingResponse
+from minio import Minio
 from pydantic import BaseModel
-
 from app.config import load_config
 from app.observability import attach_observability
 
@@ -18,7 +17,11 @@ app = FastAPI(title=config["app"]["name"])
 attach_observability(app, config)
 
 DATABASE_URL = os.getenv("DATABASE_URL")
-VIDEOS_DIR = Path(os.getenv("VIDEOS_DIR", "./videos")).resolve()
+
+S3_ENDPOINT = os.getenv("S3_ENDPOINT", "http://minio:9000")
+S3_ACCESS_KEY = os.getenv("S3_ACCESS_KEY", "minio")
+S3_SECRET_KEY = os.getenv("S3_SECRET_KEY", "minio12345")
+S3_BUCKET = os.getenv("S3_BUCKET", "cinema")
 
 
 class OverrideIn(BaseModel):
@@ -32,6 +35,14 @@ def db_conn():
     if not DATABASE_URL:
         raise HTTPException(status_code=500, detail="DATABASE_URL is not set")
     return psycopg.connect(DATABASE_URL)
+
+
+def s3_client() -> Minio:
+    if not S3_ENDPOINT:
+        raise HTTPException(status_code=500, detail="S3_ENDPOINT is not set")
+    endpoint = S3_ENDPOINT.replace("http://", "").replace("https://", "")
+    secure = S3_ENDPOINT.startswith("https://")
+    return Minio(endpoint, access_key=S3_ACCESS_KEY, secret_key=S3_SECRET_KEY, secure=secure)
 
 
 @app.get("/ping")
@@ -289,23 +300,63 @@ def get_actor(actor_id: int):
         "full_name": row[1],
         "birth_date": row[2].isoformat() if row[2] else None,
         "updated_at": row[3].isoformat() if row[3] else None,
-        "movies": [
-            {"movie_id": r[0], "title": r[1], "role_name": r[2]}
-            for r in movies
-        ],
+        "movies": [{"movie_id": r[0], "title": r[1], "role_name": r[2]} for r in movies],
     }
 
 
 @app.get("/stream/{name}")
-def stream_video(name: str):
-    p = (VIDEOS_DIR / name).resolve()
-    if not str(p).startswith(str(VIDEOS_DIR)):
-        raise HTTPException(status_code=400, detail="bad path")
+def stream_video(name: str, request: Request):
+    c = s3_client()
 
-    if not p.exists() or not p.is_file():
+    try:
+        stat = c.stat_object(S3_BUCKET, name)
+    except Exception:
         raise HTTPException(status_code=404, detail="video not found")
 
-    return FileResponse(str(p), media_type="video/mp4")
+    size = stat.size
+    range_header = request.headers.get("range")
+
+    def iter_data(resp, chunk=1024 * 1024):
+        try:
+            for part in resp.stream(chunk):
+                yield part
+        finally:
+            try:
+                resp.close()
+            except Exception:
+                pass
+
+    headers = {
+        "Accept-Ranges": "bytes",
+        "Content-Type": "video/mp4",
+    }
+
+    if not range_header:
+        resp = c.get_object(S3_BUCKET, name)
+        headers["Content-Length"] = str(size)
+        return StreamingResponse(iter_data(resp), status_code=200, headers=headers)
+
+    m = re.match(r"bytes=(\d+)-(\d*)", range_header)
+    if not m:
+        resp = c.get_object(S3_BUCKET, name)
+        headers["Content-Length"] = str(size)
+        return StreamingResponse(iter_data(resp), status_code=200, headers=headers)
+
+    start = int(m.group(1))
+    end = int(m.group(2)) if m.group(2) else size - 1
+
+    if start >= size:
+        raise HTTPException(status_code=416, detail="range not satisfiable")
+
+    end = min(end, size - 1)
+    length = end - start + 1
+
+    resp = c.get_object(S3_BUCKET, name, offset=start, length=length)
+
+    headers["Content-Range"] = f"bytes {start}-{end}/{size}"
+    headers["Content-Length"] = str(length)
+
+    return StreamingResponse(iter_data(resp), status_code=206, headers=headers)
 
 
 app.add_middleware(
